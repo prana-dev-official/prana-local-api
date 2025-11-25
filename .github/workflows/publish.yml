@@ -1,0 +1,73 @@
+name: CI/CD Pipeline
+
+on:
+  # Запускати цей пайплайн лише при створенні нового тегу (релізу)
+  push:
+    tags:
+      - 'v*' # Наприклад, v0.1.0, v1.0.0
+
+jobs:
+  # -----------------------------------------------------------
+  # JOB 1: SECURITY AUDIT (Dependency-Transparency)
+  # -----------------------------------------------------------
+  security_audit:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies (including dev tools)
+      run: |
+        pip install -r requirements-dev.txt || true # Встановлення dev-залежностей (якщо є)
+        pip install aiohttp safety
+
+    # Створення тимчасового файлу requirements.txt для аудиту
+    - name: Generate requirements list for Safety
+      run: |
+        pip freeze | grep -E 'aiohttp' > requirements-audit.txt
+
+    - name: Run security audit with Safety 🛡️
+      # Safety перевіряє requirements-audit.txt на наявність відомих CVEs
+      run: |
+        safety check --full-report -r requirements-audit.txt
+      # Якщо Safety знайде вразливості, цей job завершиться помилкою,
+      # і публікація (Publish) не відбудеться.
+
+  # -----------------------------------------------------------
+  # JOB 2: BUILD AND PUBLISH TO PYPI
+  # Залежить від успішного завершення Security Audit
+  # -----------------------------------------------------------
+  publish:
+    needs: security_audit # Запускається лише після успішного аудиту
+    runs-on: ubuntu-latest
+    environment: release # Використання середовища для публікації (за бажанням)
+    permissions:
+      id-token: write # Дозволяє автентифікацію для PyPi
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install build tools
+      run: |
+        pip install build
+
+    - name: Build Source Distribution and Wheel
+      # Створює файли у папці dist/
+      run: python -m build
+
+    - name: Publish package to PyPI 🚀
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        # Цей токен автоматично береться з секретів GitHub
+        password: ${{ secrets.PYPI_API_TOKEN }}
