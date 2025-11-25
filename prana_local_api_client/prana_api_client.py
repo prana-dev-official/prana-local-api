@@ -50,6 +50,12 @@ class PranaLocalApiClient:
         data = {"brightness": brightness}
         await self._async_request("POST", url, json_data=data)
 
+    async  def set_speed_is_on(self, speed_is_on: bool, fan_type: str) -> None:
+        """Sends the speed is on/off change command."""
+        url = f"{self.base_url}/setSpeedIsOn"
+        data = {"value": speed_is_on, "fanType":  fan_type}
+        await self._async_request("POST", url, json_data=data)
+
     # --- General method for executing requests ---
 
     async def _async_request(
