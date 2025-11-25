@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prana-api-client"
+version = "0.1.0"
+authors = [
+  { name="Prana Developer", email="devprana18@gmail.com" },
+]
+description = "Async API client for Prana heat recovery ventilator."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["prana", "ventilator", "api", "async"]
+license = { text = "MIT" }
+
+dependencies = [
+    "aiohttp>=3.9.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/YourUsername/prana-api-client"
