@@ -82,7 +82,6 @@ class PranaLocalApiClient:
             async with self.session.request(
                     method, url, json=json_data, timeout=ClientTimeout(total=10)
             ) as resp:
-                print(resp.json())
                 if resp.status != 200:
                     _LOGGER.error("Request failed: %s %s with status %s", method, url, resp.status)
                     raise PranaApiUpdateFailed(resp.status, "HTTP error from device")
@@ -93,7 +92,6 @@ class PranaLocalApiClient:
                 return None  # For POST requests that don't return JSON
 
         except (ClientError, ClientTimeout) as err:
-            print(err)
             _LOGGER.error("Network or timeout error: %s", err)
             raise PranaApiCommunicationError(f"Network error: {err}") from err
         finally:

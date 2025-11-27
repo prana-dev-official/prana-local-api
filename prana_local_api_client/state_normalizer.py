@@ -71,7 +71,6 @@ async def fetch_and_normalize_state(api_client) -> Tuple[Dict[str, Any], Optiona
             # fallback (may raise or cause recursion if client.get_state delegates here)
             raw = await api_client.get_state()
         else:
-            print("Using internal raw fetcher")
             raw = await raw_fetch()
     except PranaApiUpdateFailed as err:
         raise UpdateFailed(f"HTTP error communicating with device: {err}") from err
