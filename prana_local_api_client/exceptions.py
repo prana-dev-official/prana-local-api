@@ -9,3 +9,8 @@ class PranaApiUpdateFailed(PranaApiClientException):
     def __init__(self, status: int, message: str = "HTTP error"):
         super().__init__(f"{message} {status}")
         self.status = status
+
+class UpdateFailed(PranaApiClientException):
+    """Raised when updating/fetching state fails (wrapper used by higher-level logic)."""
+    def __init__(self, message: str):
+        super().__init__(message)

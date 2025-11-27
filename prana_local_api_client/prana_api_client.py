@@ -2,7 +2,8 @@ from aiohttp import ClientSession, ClientError, ClientTimeout
 from typing import Any
 import json
 import logging
-from .exceptions import PranaApiUpdateFailed, PranaApiCommunicationError
+from .exceptions import PranaApiUpdateFailed, PranaApiCommunicationError, UpdateFailed
+from .state_normalizer import fetch_and_normalize_state
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +29,12 @@ class PranaLocalApiClient:
     # --- HTTP Methods, extracted from Coordinator and async_get_state ---
 
     async def get_state(self) -> dict[str, Any]:
-        """Performs a GET to retrieve the raw device state."""
+        """Return the normalized device state by delegating to the state normalizer."""
+        state, _max_speed = await fetch_and_normalize_state(self)
+        return state
+
+    async def _get_raw_state(self) -> dict[str, Any] | None:
+        """Internal helper to fetch raw state JSON (used by state_normalizer)."""
         url = f"{self.base_url}/getState"
         return await self._async_request("GET", url)
 
@@ -76,6 +82,7 @@ class PranaLocalApiClient:
             async with self.session.request(
                     method, url, json=json_data, timeout=ClientTimeout(total=10)
             ) as resp:
+                print(resp.json())
                 if resp.status != 200:
                     _LOGGER.error("Request failed: %s %s with status %s", method, url, resp.status)
                     raise PranaApiUpdateFailed(resp.status, "HTTP error from device")
@@ -86,6 +93,7 @@ class PranaLocalApiClient:
                 return None  # For POST requests that don't return JSON
 
         except (ClientError, ClientTimeout) as err:
+            print(err)
             _LOGGER.error("Network or timeout error: %s", err)
             raise PranaApiCommunicationError(f"Network error: {err}") from err
         finally:
