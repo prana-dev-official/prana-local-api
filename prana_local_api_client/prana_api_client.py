@@ -3,7 +3,7 @@ from typing import Any
 import json
 import logging
 from .exceptions import PranaApiUpdateFailed, PranaApiCommunicationError, UpdateFailed
-from .state_normalizer import fetch_and_normalize_state
+from .models.prana_state import PranaState
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,15 +28,26 @@ class PranaLocalApiClient:
 
     # --- HTTP Methods, extracted from Coordinator and async_get_state ---
 
-    async def get_state(self) -> dict[str, Any]:
-        """Return the normalized device state by delegating to the state normalizer."""
-        state, _max_speed = await fetch_and_normalize_state(self)
-        return state
+    async def get_state(self) -> PranaState:
+        raw = await self._get_raw_state()
+        return PranaState.from_dict(raw)
 
     async def _get_raw_state(self) -> dict[str, Any] | None:
-        """Internal helper to fetch raw state JSON (used by state_normalizer)."""
-        url = f"{self.base_url}/getState"
-        return await self._async_request("GET", url)
+        """Internal helper to fetch raw state JSON (used by this client)."""
+        try:
+            url = f"{self.base_url}/getState"
+            raw = await self._async_request("GET", url)
+        except PranaApiUpdateFailed as err:
+            raise UpdateFailed(f"HTTP error communicating with device: {err}") from err
+        except PranaApiCommunicationError as err:
+            raise UpdateFailed(f"Network error communicating with device: {err}") from err
+        except Exception as err:
+            raise UpdateFailed(f"Unexpected error updating device: {err}") from err
+
+        if not isinstance(raw, dict):
+            _LOGGER.debug("Received non-dict state: %s", raw)
+            raise UpdateFailed("Received invalid state from device")
+        return raw
 
     async def set_speed(self, speed: int, fan_type: str) -> None:
         """Sends the speed change command."""
