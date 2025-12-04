@@ -45,3 +45,4 @@ env/
 .pip_cache
 pip-log.txt
 poetry.lock
+main.py

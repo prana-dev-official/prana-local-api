@@ -3,6 +3,7 @@ from typing import Any
 import json
 import logging
 from .exceptions import PranaApiUpdateFailed, PranaApiCommunicationError, UpdateFailed
+from .models.prana_device_info import PranaDeviceInfo
 from .models.prana_state import PranaState
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,6 +28,11 @@ class PranaLocalApiClient:
         self.session = None
 
     # --- HTTP Methods, extracted from Coordinator and async_get_state ---
+
+    async  def get_device_info(self) -> PranaDeviceInfo:
+        url = f"{self.base_url}/info"
+        raw = await self._async_request("GET", url)
+        return PranaDeviceInfo.from_dict(raw)
 
     async def get_state(self) -> PranaState:
         raw = await self._get_raw_state()
