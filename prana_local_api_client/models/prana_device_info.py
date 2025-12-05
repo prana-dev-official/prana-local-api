@@ -15,7 +15,6 @@ class PranaDeviceInfo:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PranaDeviceInfo":
-        print(data)
         def _to_int(value: Any, default: int = 0) -> int:
             if value is None:
                 return default
