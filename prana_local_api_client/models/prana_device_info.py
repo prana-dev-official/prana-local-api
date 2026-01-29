@@ -72,3 +72,7 @@ class PranaDeviceInfo:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+    def __eq__(self, other):
+        return self.to_dict() == other.to_dict()
+

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Optional, Any, Dict
 
 
@@ -85,3 +85,6 @@ class PranaState:
             voc=(None if "voc" not in data else int(data["voc"])),
             air_pressure=(None if "air_pressure" not in data else int(data["air_pressure"])),
         )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)

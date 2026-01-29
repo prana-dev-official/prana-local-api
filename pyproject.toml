@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prana-api-client"
-version = "0.10.0"
+version = "0.11.0"
 authors = [
   { name="Prana Developer", email="devprana18@gmail.com" },
 ]
@@ -17,6 +17,9 @@ license = { text = "MIT" }
 dependencies = [
     "aiohttp>=3.9.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/YourUsername/prana-api-client"

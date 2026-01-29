@@ -46,3 +46,4 @@ env/
 pip-log.txt
 poetry.lock
 main.py
+.DS_Store

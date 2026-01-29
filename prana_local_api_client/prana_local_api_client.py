@@ -1,10 +1,12 @@
 from aiohttp import ClientSession, ClientError, ClientTimeout
+from asyncio import TimeoutError
 from typing import Any
 import json
 import logging
 from .exceptions import PranaApiUpdateFailed, PranaApiCommunicationError, UpdateFailed
 from .models.prana_device_info import PranaDeviceInfo
 from .models.prana_state import PranaState
+from .models.prana_switch_type import PranaSwitchType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,11 +59,13 @@ class PranaLocalApiClient:
 
     async def set_speed(self, speed: int, fan_type: str) -> None:
         """Sends the speed change command."""
+        if speed % 10 != 0:
+            raise ValueError("Speed must be multiple of 10 to set a non-zero speed")
         url = f"{self.base_url}/setSpeed"
         data = {"speed": speed, "fanType": fan_type}
         await self._async_request("POST", url, json_data=data)
 
-    async def set_switch(self, switch_type: str, value: bool) -> None:
+    async def set_switch(self, switch_type: PranaSwitchType, value: bool) -> None:
         """Sends the switch state change command."""
         url = f"{self.base_url}/setSwitch"
         data = {"switchType": switch_type, "value": value}
@@ -69,6 +73,9 @@ class PranaLocalApiClient:
 
     async def set_brightness(self, brightness: int) -> None:
         """Sends the brightness change command."""
+        accepted_values = (0, 1, 2, 4, 8, 16, 32)
+        if brightness not in accepted_values:
+            raise ValueError(f"Brightness must be one of {accepted_values}")
         url = f"{self.base_url}/setBrightness"
         data = {"brightness": brightness}
         await self._async_request("POST", url, json_data=data)
@@ -108,7 +115,7 @@ class PranaLocalApiClient:
 
                 return None  # For POST requests that don't return JSON
 
-        except (ClientError, ClientTimeout) as err:
+        except (ClientError, TimeoutError) as err:
             _LOGGER.error("Network or timeout error: %s", err)
             raise PranaApiCommunicationError(f"Network error: {err}") from err
         finally:
