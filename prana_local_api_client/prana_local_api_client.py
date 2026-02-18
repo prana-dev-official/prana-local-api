@@ -7,7 +7,7 @@ from .exceptions import PranaApiUpdateFailed, PranaApiCommunicationError, Update
 from .models.prana_device_info import PranaDeviceInfo
 from .models.prana_state import PranaState
 from .models.prana_switch_type import PranaSwitchType
-
+from .models.prana_fan_type import PranaFanType
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -57,7 +57,7 @@ class PranaLocalApiClient:
             raise UpdateFailed("Received invalid state from device")
         return raw
 
-    async def set_speed(self, speed: int, fan_type: str) -> None:
+    async def set_speed(self, speed: int, fan_type: PranaFanType | str) -> None:
         """Sends the speed change command."""
         if speed % 10 != 0:
             raise ValueError("Speed must be multiple of 10 to set a non-zero speed")
@@ -65,7 +65,7 @@ class PranaLocalApiClient:
         data = {"speed": speed, "fanType": fan_type}
         await self._async_request("POST", url, json_data=data)
 
-    async def set_switch(self, switch_type: PranaSwitchType, value: bool) -> None:
+    async def set_switch(self, switch_type: PranaSwitchType | str , value: bool) -> None:
         """Sends the switch state change command."""
         url = f"{self.base_url}/setSwitch"
         data = {"switchType": switch_type, "value": value}

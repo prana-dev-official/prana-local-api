@@ -28,6 +28,7 @@ class FanState:
         )
 
 
+
 @dataclass
 class PranaState:
     extract: FanState
@@ -40,6 +41,8 @@ class PranaState:
     auto_plus: bool
     winter: bool
     brightness: int
+    night: bool
+    boost: bool
 
     # Optional (positional / not required) environmental sensors
     inside_temperature: Optional[float] = None
@@ -75,6 +78,8 @@ class PranaState:
             auto=bool(data.get("auto", False)),
             auto_plus=bool(data.get("auto_plus", False)),
             winter=bool(data.get("winter", False)),
+            night=bool(data.get("night", False)),
+            boost=bool(data.get("boost", False)),
             brightness=int(data.get("brightness", 0)),
             inside_temperature=parse_temp("inside_temperature"),
             outside_temperature=parse_temp("outside_temperature"),
@@ -85,6 +90,8 @@ class PranaState:
             voc=(None if "voc" not in data else int(data["voc"])),
             air_pressure=(None if "air_pressure" not in data else int(data["air_pressure"])),
         )
+
+
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
