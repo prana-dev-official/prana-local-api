@@ -4,7 +4,19 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: monthly
+    # This is a library: keep the ">=" lower bounds as low as possible so it
+    # installs next to whatever aiohttp Home Assistant pins. Only raise a bound
+    # when the current one excludes the latest release. CI already installs and
+    # tests the latest versions of everything.
+    versioning-strategy: increase-if-necessary
+    groups:
+      python:
+        patterns: ["*"]
