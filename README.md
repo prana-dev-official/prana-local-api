@@ -1,123 +1,142 @@
-# prana-local-api-client
+# prana-api-client
 
-An asynchronous Python client for the local HTTP API of Prana devices.
+[![CI](https://github.com/prana-dev-official/prana-local-api/actions/workflows/ci.yml/badge.svg)](https://github.com/prana-dev-official/prana-local-api/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/prana-api-client)](https://pypi.org/project/prana-api-client/)
 
-This library provides a small, well-documented async client to read the device state and control Prana recuperators over a local network using HTTP.
+Async Python client for the local HTTP API of Prana recuperators, used by the
+Home Assistant `prana` integration. Includes a device simulator for development
+without hardware.
 
-Quick links
+- Python 3.10+, `aiohttp`, fully typed (`py.typed`)
+- Regular models (150, 162, 200, 212, 340) and **Prana Neo**
+- Device firmware **47+** (check it in the *Prana Online 2.0* app: press and
+  hold the device card → **About Device**)
 
-- Installation: see the **Installation** section
-- Quick start: see **Quick example (async)**
-- API reference: see **API / Methods**
-
-Requirements
-
-- Python 3.10+
-- aiohttp
-
-Firmware compatibility
-
-> ⚠️ This client works only with Prana recuperators running firmware **47+**.
-
-To check firmware: open the `Prana Online 2.0` app → press and hold the device card → **About Device**.
-
-Table of contents
-
-- Features
-- Installation
-- Quick example (async)
-- API / Methods
-- Data models
-- Exceptions
-- License
-
-Features
-
-- Fetch device information (`get_device_info`).
-- Retrieve structured device state (`get_state`) as `PranaState` / `FanState`.
-- Control fan speed, toggles, and brightness (`set_speed`, `set_switch`, `set_brightness`).
-- Fully asynchronous (`asyncio` + `aiohttp`).
-- Helpful model parsing (e.g., temperature reported in tenths of °C is normalized).
-
-Installation
-
-Install from PyPI:
+## Installation
 
 ```bash
-pip install prana-local-api-client
+pip install prana-api-client
 ```
 
-From a local checkout (editable, with dev extras):
+The import name is `prana_local_api_client`.
 
-```bash
-pip install -e .[dev]
-```
-
-Quick example (async)
+## Quick start
 
 ```python
 import asyncio
-from prana_local_api_client.prana_local_api_client import PranaLocalApiClient
-from prana_local_api_client.models.prana_fan_type import PranaFanType
-from prana_local_api_client.models.prana_switch_type import PranaSwitchType
+
+from prana_local_api_client import (
+    PranaFanType,
+    PranaLocalApiClient,
+    PranaPositionType,
+    PranaSwitchType,
+)
 
 
-async def main():
-    # Device IP and optional port
-    async with PranaLocalApiClient("192.168.1.100", port=80) as client:
+async def main() -> None:
+    async with PranaLocalApiClient("192.168.1.100") as client:
         info = await client.get_device_info()
-        print("Device:", info.to_dict())
-
         state = await client.get_state()
-        print("State:", state.to_dict())
+        print(info.pranaModel, state.supply.speed, state.inside_temperature)
 
-        # NOTE: the device expects speed values scaled by 10. For example,
-        # to set speed '1' pass 10, for speed '3' pass 30.
-        await client.set_speed(30, fan_type=PranaFanType.EXTRACT.value)
+        await client.set_speed(30, PranaFanType.SUPPLY)  # speed step 3 (x10)
+        await client.set_switch(PranaSwitchType.NIGHT, True)
 
-        # Enable a switch (e.g. BOOST)
-        await client.set_switch(PranaSwitchType.BOOST.value, True)
+        if info.is_neo and state.fresh_air_position is not None:
+            await client.set_position(PranaPositionType.FRESH_AIR, 2)
 
-        # Set backlight brightness (0-100)
-        await client.set_brightness(50)
 
 asyncio.run(main())
 ```
 
-API / Methods
+### Sessions
 
-Top-level client: `PranaLocalApiClient` (module: `prana_local_api_client.prana_local_api_client`).
+| Usage | Session |
+| --- | --- |
+| `PranaLocalApiClient(host, session=my_session)` | yours; never closed by the client (recommended in Home Assistant) |
+| `async with PranaLocalApiClient(host) as client:` | opened for the block and closed on exit |
+| plain calls without `async with` | a short-lived session per request |
 
-- `PranaLocalApiClient(host: str, port: int = 80)` — create client instance.
-- `async with PranaLocalApiClient(...) as client:` — context manager that opens/closes an `aiohttp.ClientSession`.
-- `get_device_info() -> PranaDeviceInfo` — returns device info as a `PranaDeviceInfo`.
-- `get_state() -> PranaState` — returns the current device state as a `PranaState`.
-- `set_speed(speed: int, fan_type: str)` — set fan speed; `fan_type` is one of: `supply`, `extract`, `bounded` (10, 20, 30 ... 100).
-- `set_switch(switch_type: PranaSwitchType, value: bool)` — toggle a switch; use `PranaSwitchType` values.
-- `set_brightness(brightness: int)` — set panel/backlight brightness (0, 1, 2, 4, 8, 16, 32).
-- `set_speed_is_on(speed_is_on: bool, fan_type: str)` — enable/disable speed for a fan type.
+## API
 
-Data models
+`PranaLocalApiClient(host, port=80, *, session=None, timeout=10.0)`
 
-Models are defined in `prana_local_api_client.models` and provide `from_dict` helpers:
+| Method | Endpoint | Notes |
+| --- | --- | --- |
+| `get_device_info() -> PranaDeviceInfo` | `GET /info` | |
+| `get_state() -> PranaState` | `GET /getState` | |
+| `set_speed(speed, fan_type)` | `POST /setSpeed` | `speed` in tenths of a step (`30` = step 3); `fan_type`: `supply`, `extract`, `bounded` (use `bounded` while bound mode is on) |
+| `set_speed_is_on(on, fan_type)` | `POST /setSpeedIsOn` | turn a motor on/off |
+| `set_switch(switch_type, value)` | `POST /setSwitch` | see `PranaSwitchType` |
+| `set_brightness(value)` | `POST /setBrightness` | one of `0, 1, 2, 4, 8, 16, 32` (level *n* → `2 ** (n - 1)`) |
+| `set_position(position_type, value)` | `POST /setPosition` | **Neo only**: `fresh_air` / `extract`, `0` (off) … `3` |
 
-- `PranaDeviceInfo` — fields: `manufactureId`, `isValid`, `fwVersion`, `pranaModel`, `label`.
-- `PranaState` — contains `extract`, `supply`, `bounded` (`FanState`) plus flags and optional sensor fields (`inside_temperature`, `outside_temperature`, `humidity`, `co2`, etc.).
-- `FanState` — `speed`, `is_on`, `max_speed`.
+Invalid arguments raise `ValueError` before anything is sent.
 
-Notes on parsing
+### Models
 
-- Temperatures are often reported by the device in tenths of °C; `PranaState.from_dict` converts these to °C floats.
-- `PranaDeviceInfo.from_dict` handles numeric strings and byte values for firmware/model fields.
+- **`PranaDeviceInfo`**: `manufactureId` (serial), `isValid`, `fwVersion`,
+  `pranaModel` (name, e.g. `"PRANA NEO"`), `label`, `model_id` (raw model byte),
+  and the `is_neo` property.
+- **`PranaState`**: `supply`, `extract` and `bounded` (`FanState`: `speed`,
+  `is_on`, `max_speed` in steps); the `bound`, `heater`, `auto`, `auto_plus`,
+  `winter`, `night` and `boost` flags; `brightness` (0–6); and sensors
+  (`inside_temperature`, `outside_temperature`, `*_2`, `humidity`, `co2`, `voc`,
+  `air_pressure`; temperatures in °C). On Neo it also has `fresh_air_position`
+  and `extract_position`. Values the device does not report are `None`.
 
-Exceptions
+### Prana Neo
 
-Defined in `prana_local_api_client.models.exceptions`:
+Neo reports `pranaModel = 5`. Compared with the regular models:
 
-- `PranaApiClientException` — base exception class.
-- `PranaApiCommunicationError` — network/timeout related errors.
-- `PranaApiUpdateFailed` — HTTP error returned by device (status != 200).
-- `UpdateFailed` — wrapper for higher-level update failures.
-- `ValueError` — invalid values encountered.
+- It has no heater and no boost. `auto` is called *Auto turbo* and `auto_plus`
+  *Auto comfort* in the Prana app.
+- `inside_temperature` is the supply air temperature and `outside_temperature_2`
+  is the extract air temperature.
+- **Fresh air** and **Extract** modes have positions 1–3. Fresh air forces the
+  supply motor to one step above its maximum and stops the extract motor;
+  Extract mode does the opposite. Each clears the other, along with Night,
+  Auto and Auto+. Turning on Night, Auto, Auto+ or Bound clears both.
+- Firmware without the Neo local API does not send `fresh_air_position` or
+  `extract_position`, so check for `None` before offering these modes.
 
-Wrap client calls in `try/except` and handle these exceptions depending on your application needs.
+### Exceptions
+
+```
+PranaApiClientException
+└── UpdateFailed                    any failed request
+    ├── PranaApiCommunicationError  connection error or timeout
+    ├── PranaApiUpdateFailed        non-200 status (.status)
+    └── PranaApiInvalidResponse     unexpected payload
+```
+
+## Simulator
+
+The package includes a fake device that serves the whole API, with the mode
+rules above:
+
+```bash
+prana-simulator --model neo --host 0.0.0.0   # or: python -m prana_local_api_client.simulator
+prana-simulator --model 200 --port 8080      # models: neo, 200, 340
+```
+
+On macOS a regular user can bind port 80 only on `0.0.0.0`, which also makes
+the simulator reachable from your local network. Sensor values drift every few
+seconds, and each accepted command is logged.
+
+## Development
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -e ".[dev]"
+ruff check . && ruff format --check . && mypy && pytest --cov
+```
+
+CI runs these checks on Python 3.10–3.14, along with `pip-audit` and a test
+build of the package. To release, bump `version` in `pyproject.toml`, update
+`CHANGELOG.md`, and push a `vX.Y.Z` tag. The release workflow checks that the
+tag matches the version, then publishes to PyPI and creates a GitHub release.
+
+## License
+
+MIT
