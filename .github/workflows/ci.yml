@@ -53,7 +53,7 @@ jobs:
         run: pytest --cov --cov-report=term-missing --cov-report=xml
       - name: Upload coverage report
         if: matrix.python-version == '3.13'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage.xml
@@ -88,7 +88,7 @@ jobs:
           /tmp/smoke/bin/pip install dist/*.whl
           /tmp/smoke/bin/python -c "import prana_local_api_client as p; print(p.PranaLocalApiClient)"
           /tmp/smoke/bin/prana-simulator --help
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
