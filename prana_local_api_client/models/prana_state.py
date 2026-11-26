@@ -1,36 +1,70 @@
-from dataclasses import dataclass, asdict
-from typing import Optional, Any, Dict
+"""Device state returned by ``GET /getState``."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from typing import Any
+
+# The device reports speeds and temperatures scaled by 10.
+_SCALE = 10
+
+
+def _optional_int(data: dict[str, Any], key: str) -> int | None:
+    """Return ``data[key]`` as int, or None when the device does not report it."""
+    value = data.get(key)
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_temperature(data: dict[str, Any], key: str) -> float | None:
+    """Return a temperature in °C (device reports tenths of °C), or None."""
+    value = data.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) / _SCALE
 
 
 @dataclass
 class FanState:
+    """State of one motor (supply, extract or both together when bound).
+
+    ``speed`` and ``max_speed`` are speed steps (e.g. 1..7). In Prana Neo
+    Fresh air / Extract mode the forced motor reports ``max_speed + 1``.
+    """
+
     speed: int
     is_on: bool
     max_speed: int
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], max_speed: Optional[int] = None) -> "FanState":
-        # If max_speed provided, use it; otherwise try to derive from data (raw device may be in tenths)
+    def from_dict(cls, data: dict[str, Any], max_speed: int | None = None) -> FanState:
+        """Build from a fan object of ``/getState``.
+
+        The device reports ``max_speed`` in tenths (``70`` -> 7 steps); values
+        below 10 are taken as steps already. ``max_speed`` overrides it.
+        """
         if max_speed is None:
-            raw_max = data.get("max_speed", 0)
-            try:
-                # If raw_max is in tenths (e.g. 100 -> 10), convert; otherwise fallback to int
-                max_val = int(raw_max) // 10 if isinstance(raw_max, (int, float)) and int(raw_max) >= 10 else int(raw_max or 0)
-            except Exception:
-                max_val = int(raw_max or 0)
-        else:
-            max_val = int(max_speed)
-
+            raw_max = _optional_int(data, "max_speed") or 0
+            max_speed = raw_max // _SCALE if raw_max >= _SCALE else raw_max
         return cls(
-            speed=int(data.get("speed", 0)),
+            speed=_optional_int(data, "speed") or 0,
             is_on=bool(data.get("is_on", False)),
-            max_speed=max_val,
+            max_speed=int(max_speed),
         )
-
 
 
 @dataclass
 class PranaState:
+    """Full device state.
+
+    Optional fields are None when the model does not report them, so callers can
+    tell "not supported" apart from a real value.
+    """
+
     extract: FanState
     supply: FanState
     bounded: FanState
@@ -40,39 +74,31 @@ class PranaState:
     auto: bool
     auto_plus: bool
     winter: bool
-    brightness: int
+    brightness: int  # display brightness level 0..6
     night: bool
     boost: bool
 
-    # Optional (positional / not required) environmental sensors
-    inside_temperature: Optional[float] = None
-    outside_temperature: Optional[float] = None
-    inside_temperature_2: Optional[float] = None
-    outside_temperature_2: Optional[float] = None
-    humidity: Optional[int] = None
-    co2: Optional[int] = None
-    voc: Optional[int] = None
-    air_pressure: Optional[int] = None
+    # Sensors (temperatures in °C).
+    inside_temperature: float | None = None
+    outside_temperature: float | None = None
+    inside_temperature_2: float | None = None
+    outside_temperature_2: float | None = None
+    humidity: int | None = None
+    co2: int | None = None
+    voc: int | None = None
+    air_pressure: int | None = None
+
+    # Prana Neo only: Fresh air / Extract mode position (0 = off, 1-3).
+    fresh_air_position: int | None = None
+    extract_position: int | None = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], max_speed: Optional[int] = None) -> "PranaState":
-        # Build nested FanState objects, passing computed max_speed if available
-        extract = FanState.from_dict(data.get("extract", {}), max_speed=max_speed)
-        supply = FanState.from_dict(data.get("supply", {}), max_speed=max_speed)
-        bounded = FanState.from_dict(data.get("bounded", {}), max_speed=max_speed)
-
-        def parse_temp(key: str) -> Optional[float]:
-            if key in data and isinstance(data[key], (int, float)):
-                try:
-                    return float(data[key]) / 10.0  # device reports tenths of °C
-                except Exception:
-                    return None
-            return None
-
+    def from_dict(cls, data: dict[str, Any], max_speed: int | None = None) -> PranaState:
+        """Build from the ``/getState`` JSON payload."""
         return cls(
-            extract=extract,
-            supply=supply,
-            bounded=bounded,
+            extract=FanState.from_dict(data.get("extract") or {}, max_speed),
+            supply=FanState.from_dict(data.get("supply") or {}, max_speed),
+            bounded=FanState.from_dict(data.get("bounded") or {}, max_speed),
             bound=bool(data.get("bound", False)),
             heater=bool(data.get("heater", False)),
             auto=bool(data.get("auto", False)),
@@ -80,18 +106,19 @@ class PranaState:
             winter=bool(data.get("winter", False)),
             night=bool(data.get("night", False)),
             boost=bool(data.get("boost", False)),
-            brightness=int(data.get("brightness", 0)),
-            inside_temperature=parse_temp("inside_temperature"),
-            outside_temperature=parse_temp("outside_temperature"),
-            inside_temperature_2=parse_temp("inside_temperature_2"),
-            outside_temperature_2=parse_temp("outside_temperature_2"),
-            humidity=(None if "humidity" not in data else int(data["humidity"])),
-            co2=(None if "co2" not in data else int(data["co2"])),
-            voc=(None if "voc" not in data else int(data["voc"])),
-            air_pressure=(None if "air_pressure" not in data else int(data["air_pressure"])),
+            brightness=_optional_int(data, "brightness") or 0,
+            inside_temperature=_optional_temperature(data, "inside_temperature"),
+            outside_temperature=_optional_temperature(data, "outside_temperature"),
+            inside_temperature_2=_optional_temperature(data, "inside_temperature_2"),
+            outside_temperature_2=_optional_temperature(data, "outside_temperature_2"),
+            humidity=_optional_int(data, "humidity"),
+            co2=_optional_int(data, "co2"),
+            voc=_optional_int(data, "voc"),
+            air_pressure=_optional_int(data, "air_pressure"),
+            fresh_air_position=_optional_int(data, "fresh_air_position"),
+            extract_position=_optional_int(data, "extract_position"),
         )
 
-
-
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        """Return the fields as a plain (nested) dict."""
         return asdict(self)
