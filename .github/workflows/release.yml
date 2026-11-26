@@ -1,6 +1,7 @@
 name: Release
 
-# Publishes to PyPI when a version tag (v1.2.3) is pushed.
+# Publishes to PyPI when a version tag (v1.2.3) is pushed, either from git or
+# by creating a release in the GitHub UI.
 # The tag must match `version` in pyproject.toml.
 on:
   push:
@@ -51,7 +52,17 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
-      - name: Create GitHub release
+          # Lets a failed run be re-run after the upload already succeeded.
+          skip-existing: true
+      # Works both when the tag was pushed from git (creates the release) and
+      # when the release was created in the GitHub UI (only attaches the files,
+      # keeping the hand-written notes).
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --title "${GITHUB_REF_NAME}" --generate-notes --verify-tag
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/* --title "${GITHUB_REF_NAME}" --generate-notes --verify-tag
+          fi
